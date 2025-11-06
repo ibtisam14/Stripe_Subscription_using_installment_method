@@ -27,6 +27,31 @@ def create_checkout_session(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
+
+def create_stripe_transfer(amount_cents, currency, connected_account_id, payment_intent_id=None):
+    """
+    Create a Stripe Transfer to a connected account.
+
+    Parameters:
+    - amount_cents: int, amount in cents (100 = $1)
+    - currency: str, e.g., 'usd'
+    - connected_account_id: str, Stripe Connect account ID
+    - payment_intent_id: str, optional, link transfer to original payment
+    """
+    try:
+        transfer = stripe.Transfer.create(
+            amount=amount_cents,
+            currency=currency,
+            destination=connected_account_id,
+            source_transaction=payment_intent_id
+        )
+        print("✅ Transfer successful:", transfer.id)
+        return transfer
+    except Exception as e:
+        print("❌ Transfer failed:", str(e))
+        return None
+
+
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
@@ -38,20 +63,30 @@ def stripe_webhook(request):
             payload, sig_header, endpoint_secret
         )
     except ValueError:
-    
         return HttpResponse(status=400)
     except stripe.error.SignatureVerificationError:
-    
         return HttpResponse(status=400)
 
     if event["type"] == "customer.subscription.created":
         subscription = event["data"]["object"]
         print("✅ Installment subscription started:", subscription["id"])
 
-
     if event["type"] == "invoice.payment_succeeded":
         invoice = event["data"]["object"]
         print("✅ Installment payment received")
+
+        payment_intent_id = invoice.get("payment_intent")
+        if payment_intent_id:
+            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            amount_received = payment_intent.amount_received  
+            currency = payment_intent.currency
+
+            create_stripe_transfer(
+                amount_cents=int(amount_received * 0.5),  
+                currency=currency,
+                connected_account_id="acct_CONNECTED_ACCOUNT_ID", 
+                payment_intent_id=payment_intent_id
+            )
 
     if event["type"] == "customer.subscription.deleted":
         print("✅ Installment plan completed / subscription ended")
