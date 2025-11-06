@@ -27,29 +27,32 @@ def create_checkout_session(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-# ✅ Stripe Webhook
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
     sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
-    endpoint_secret = "your_webhook_secret_here"   # set webhook endpoint in stripe
+    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")  
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except Exception as e:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
+    except ValueError:
+    
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError:
+    
         return HttpResponse(status=400)
 
-    # ✅ Subscription created
     if event["type"] == "customer.subscription.created":
         subscription = event["data"]["object"]
         print("✅ Installment subscription started:", subscription["id"])
 
-    # ✅ Payment successfully made (every month)
+
     if event["type"] == "invoice.payment_succeeded":
         invoice = event["data"]["object"]
         print("✅ Installment payment received")
 
-    # ✅ Final month completed (installments finished)
     if event["type"] == "customer.subscription.deleted":
         print("✅ Installment plan completed / subscription ended")
 
