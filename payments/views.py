@@ -4,10 +4,29 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+# ✅ Load Stripe Secret Key
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
+CONNECTED_ACCOUNT_ID = "acct_1SQlMsIVBvIGjqRr"   # ✅ your account ID
 
 
+# ✅ Add funds to PLATFORM balance (USD only)
+@csrf_exempt
+def add_funds(request):
+    try:
+        payment_intent = stripe.PaymentIntent.create(
+            amount=20000,         # $200 USD
+            currency="usd",
+            payment_method="pm_card_visa",
+            confirm=True
+        )
+        return JsonResponse({"status": "funds added", "pi": payment_intent.id})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+# ✅ Stripe Transfer (Platform → Connected)
 def create_stripe_transfer(amount_cents, currency, connected_account_id):
     try:
         transfer = stripe.Transfer.create(
@@ -22,6 +41,35 @@ def create_stripe_transfer(amount_cents, currency, connected_account_id):
         return None
 
 
+# ✅ TEST transfer manually:
+@csrf_exempt
+def test_transfer(request):
+    try:
+        transfer = stripe.Transfer.create(
+            amount=10000,  
+            currency="usd",
+            destination=CONNECTED_ACCOUNT_ID
+        )
+        return JsonResponse({"success": True, "transfer": transfer})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+# ✅ TEST payout manually (Connected → Bank)
+@csrf_exempt
+def test_payout(request):
+    try:
+        payout = stripe.Payout.create(
+            amount=5000,        # 50 AED
+            currency="aed",     # MUST MATCH connected account balance
+            stripe_account=CONNECTED_ACCOUNT_ID,
+        )
+        return JsonResponse({"success": True, "payout": payout})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+# ✅ Checkout Session (Subscription)
 @csrf_exempt
 @require_POST
 def create_checkout_session(request):
@@ -40,19 +88,7 @@ def create_checkout_session(request):
         return JsonResponse({"error": str(e)}, status=400)
 
 
-@csrf_exempt
-def test_transfer(request):
-    try:
-        transfer = stripe.Transfer.create(
-            amount=10000,  
-            currency="usd",
-            destination="acct_1SQlMsIVBvIGjqRr"  
-        )
-        return JsonResponse({"success": True, "transfer": transfer})
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
-
-
+# ✅ Stripe Webhook
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
@@ -61,15 +97,15 @@ def stripe_webhook(request):
 
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except ValueError:
-        return HttpResponse(status=400)
-    except stripe.error.SignatureVerificationError:
+    except Exception:
         return HttpResponse(status=400)
 
+    # Subscription created
     if event["type"] == "customer.subscription.created":
         subscription = event["data"]["object"]
         print("✅ Installment subscription started:", subscription["id"])
 
+    # Payment succeeded
     if event["type"] == "invoice.payment_succeeded":
         invoice = event["data"]["object"]
         print("✅ Installment payment received")
@@ -84,10 +120,10 @@ def stripe_webhook(request):
             create_stripe_transfer(
                 amount_cents=int(amount_received * 0.5),
                 currency=currency,
-                connected_account_id="acct_1SQlMsIVBvIGjqRr"
-
+                connected_account_id=CONNECTED_ACCOUNT_ID
             )
 
+    # Subscription cancelled
     if event["type"] == "customer.subscription.deleted":
         print("✅ Installment plan completed / subscription ended")
 
