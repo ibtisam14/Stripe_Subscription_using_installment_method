@@ -8,6 +8,20 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
 
 
+def create_stripe_transfer(amount_cents, currency, connected_account_id):
+    try:
+        transfer = stripe.Transfer.create(
+            amount=amount_cents,
+            currency=currency,
+            destination=connected_account_id,
+        )
+        print("✅ Transfer successful:", transfer.id)
+        return transfer
+    except Exception as e:
+        print("❌ Transfer failed:", str(e))
+        return None
+
+
 @csrf_exempt
 @require_POST
 def create_checkout_session(request):
@@ -15,9 +29,7 @@ def create_checkout_session(request):
         checkout_session = stripe.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": PRICE_ID, "quantity": 1}],
-            subscription_data={
-                "metadata": {"plan_type": "installment"},
-            },
+            subscription_data={"metadata": {"plan_type": "installment"}},
             success_url="http://localhost:8000/success",
             cancel_url="http://localhost:8000/cancel",
         )
@@ -28,40 +40,27 @@ def create_checkout_session(request):
         return JsonResponse({"error": str(e)}, status=400)
 
 
-def create_stripe_transfer(amount_cents, currency, connected_account_id, payment_intent_id=None):
-    """
-    Create a Stripe Transfer to a connected account.
-
-    Parameters:
-    - amount_cents: int, amount in cents (100 = $1)
-    - currency: str, e.g., 'usd'
-    - connected_account_id: str, Stripe Connect account ID
-    - payment_intent_id: str, optional, link transfer to original payment
-    """
+@csrf_exempt
+def test_transfer(request):
     try:
         transfer = stripe.Transfer.create(
-            amount=amount_cents,
-            currency=currency,
-            destination=connected_account_id,
-            source_transaction=payment_intent_id
+            amount=10000,  
+            currency="usd",
+            destination="acct_1SQlMsIVBvIGjqRr"  
         )
-        print("✅ Transfer successful:", transfer.id)
-        return transfer
+        return JsonResponse({"success": True, "transfer": transfer})
     except Exception as e:
-        print("❌ Transfer failed:", str(e))
-        return None
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
     sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
-    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")  
+    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
-        )
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except ValueError:
         return HttpResponse(status=400)
     except stripe.error.SignatureVerificationError:
@@ -76,16 +75,17 @@ def stripe_webhook(request):
         print("✅ Installment payment received")
 
         payment_intent_id = invoice.get("payment_intent")
+
         if payment_intent_id:
             payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-            amount_received = payment_intent.amount_received  
+            amount_received = payment_intent.amount_received
             currency = payment_intent.currency
 
             create_stripe_transfer(
-                amount_cents=int(amount_received * 0.5),  
+                amount_cents=int(amount_received * 0.5),
                 currency=currency,
-                connected_account_id="acct_CONNECTED_ACCOUNT_ID", 
-                payment_intent_id=payment_intent_id
+                connected_account_id="acct_1SQlMsIVBvIGjqRr"
+
             )
 
     if event["type"] == "customer.subscription.deleted":
