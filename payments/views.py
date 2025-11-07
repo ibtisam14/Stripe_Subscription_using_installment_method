@@ -4,49 +4,31 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-# ✅ Load Stripe Secret Key
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
-CONNECTED_ACCOUNT_ID = "acct_1SQlMsIVBvIGjqRr"   # ✅ your account ID
+CONNECTED_ACCOUNT_ID = "acct_1SQlMsIVBvIGjqRr"
 
-
-# ✅ Add funds to PLATFORM balance (USD only)
 @csrf_exempt
 def add_funds(request):
     try:
         payment_intent = stripe.PaymentIntent.create(
-            amount=20000,         # $200 USD
+            amount=20000,
             currency="usd",
+            payment_method_types=["card"],
             payment_method="pm_card_visa",
-            confirm=True
+            confirm=True,
+            automatic_payment_methods={"enabled": False}
         )
         return JsonResponse({"status": "funds added", "pi": payment_intent.id})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-
-# ✅ Stripe Transfer (Platform → Connected)
-def create_stripe_transfer(amount_cents, currency, connected_account_id):
-    try:
-        transfer = stripe.Transfer.create(
-            amount=amount_cents,
-            currency=currency,
-            destination=connected_account_id,
-        )
-        print("✅ Transfer successful:", transfer.id)
-        return transfer
-    except Exception as e:
-        print("❌ Transfer failed:", str(e))
-        return None
-
-
-# ✅ TEST transfer manually:
 @csrf_exempt
 def test_transfer(request):
     try:
         transfer = stripe.Transfer.create(
-            amount=10000,  
+            amount=10000,  # $100
             currency="usd",
             destination=CONNECTED_ACCOUNT_ID
         )
@@ -55,21 +37,18 @@ def test_transfer(request):
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-# ✅ TEST payout manually (Connected → Bank)
 @csrf_exempt
 def test_payout(request):
     try:
         payout = stripe.Payout.create(
-            amount=5000,        # 50 AED
-            currency="aed",     # MUST MATCH connected account balance
+            amount=5000,   
+            currency="aed",
             stripe_account=CONNECTED_ACCOUNT_ID,
         )
         return JsonResponse({"success": True, "payout": payout})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
-
-# ✅ Checkout Session (Subscription)
 @csrf_exempt
 @require_POST
 def create_checkout_session(request):
@@ -81,14 +60,10 @@ def create_checkout_session(request):
             success_url="http://localhost:8000/success",
             cancel_url="http://localhost:8000/cancel",
         )
-
         return JsonResponse({"checkout_url": checkout_session.url})
-
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-
-# ✅ Stripe Webhook
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
@@ -100,31 +75,14 @@ def stripe_webhook(request):
     except Exception:
         return HttpResponse(status=400)
 
-    # Subscription created
     if event["type"] == "customer.subscription.created":
         subscription = event["data"]["object"]
         print("✅ Installment subscription started:", subscription["id"])
 
-    # Payment succeeded
     if event["type"] == "invoice.payment_succeeded":
-        invoice = event["data"]["object"]
-        print("✅ Installment payment received")
+        print("✅ Installment payment received (no transfer triggered)")
 
-        payment_intent_id = invoice.get("payment_intent")
-
-        if payment_intent_id:
-            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-            amount_received = payment_intent.amount_received
-            currency = payment_intent.currency
-
-            create_stripe_transfer(
-                amount_cents=int(amount_received * 0.5),
-                currency=currency,
-                connected_account_id=CONNECTED_ACCOUNT_ID
-            )
-
-    # Subscription cancelled
     if event["type"] == "customer.subscription.deleted":
-        print("✅ Installment plan completed / subscription ended")
+        print("✅ Installment plan ended")
 
     return HttpResponse(status=200)
