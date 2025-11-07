@@ -14,7 +14,7 @@ def add_funds(request):
     try:
         payment_intent = stripe.PaymentIntent.create(
             amount=20000,
-            currency="usd",
+            currency="aed",
             payment_method_types=["card"],
             payment_method="pm_card_visa",
             confirm=True,
@@ -29,7 +29,7 @@ def test_transfer(request):
     try:
         transfer = stripe.Transfer.create(
             amount=10000,  # $100
-            currency="usd",
+            currency="aed",
             destination=CONNECTED_ACCOUNT_ID
         )
         return JsonResponse({"success": True, "transfer": transfer})
