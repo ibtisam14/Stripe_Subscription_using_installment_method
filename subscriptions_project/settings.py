@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from dotenv import load_dotenv
 load_dotenv()
+from datetime import timedelta
 
 from pathlib import Path
 
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'payments',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -50,6 +52,13 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'subscriptions_project.urls'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+AUTH_USER_MODEL = "payments.User"
 
 TEMPLATES = [
     {
@@ -108,4 +117,18 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField' 
+
+
+SIMPLE_JWT = {
+    # Access token lifetime (how long the token is valid)
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=6),  # now token lasts 1 hour
+    # Refresh token lifetime (how long you can get a new access token)
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # refresh token lasts 7 days
+
+
+    'ROTATE_REFRESH_TOKENS': True,   
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+

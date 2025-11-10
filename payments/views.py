@@ -1,89 +1,123 @@
 import stripe
 import os
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-PRICE_ID = os.getenv("STRIPE_PRICE_ID")
-CONNECTED_ACCOUNT_ID = os.getenv("STRIPE_CONNECTED_ACCOUNT_ID")
+PRICE_ID = os.getenv("STRIPE_PRICE_ID") 
 
-@csrf_exempt
+User = get_user_model()
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def create_connected_account(request):
+    user = request.user
     try:
+    
         account = stripe.Account.create(
             type="express",
             country="AE",
-            email="testuser@example.com",  
-            capabilities={
-                "transfers": {"requested": True},
-            }
+            email=user.email,
+            capabilities={"transfers": {"requested": True}},
         )
 
+        # Save connected account ID in user model
+        user.connected_account_id = account.id
+        user.save()
+
+        # Create onboarding link
         account_link = stripe.AccountLink.create(
             account=account.id,
             refresh_url="https://example.com/reauth",
             return_url="https://example.com/return",
-            type="account_onboarding"
+            type="account_onboarding",
         )
 
-        return JsonResponse({
+        return Response({
             "success": True,
             "connected_account_id": account.id,
             "account_link_url": account_link.url
         })
-
     except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
+        return Response({"success": False, "error": str(e)}, status=400)
 
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def add_funds(request):
     try:
+        amount = request.data.get("amount")
+        if not amount:
+            return Response({"error": "Amount is required"}, status=400)
+        amount = int(amount)
+
         payment_intent = stripe.PaymentIntent.create(
-            amount=20000,
+            amount=amount,
             currency="aed",
             payment_method_types=["card"],
             payment_method="pm_card_visa",
             confirm=True,
-            automatic_payment_methods={"enabled": False}
+            automatic_payment_methods={"enabled": False},
         )
-        return JsonResponse({"status": "funds added", "pi": payment_intent.id})
+        return Response({"status": "funds added", "pi": payment_intent.id})
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
+        return Response({"error": str(e)}, status=400)
 
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def test_transfer(request):
+    user = request.user
+    if not getattr(user, "connected_account_id", None):
+        return Response({"error": "User does not have a connected account"}, status=400)
+
     try:
+        amount = request.data.get("amount")
+        if not amount:
+            return Response({"error": "Amount is required"}, status=400)
+        amount = int(amount)
+
         transfer = stripe.Transfer.create(
-            amount=10000, 
+            amount=amount,
             currency="aed",
-            destination=CONNECTED_ACCOUNT_ID
+            destination=user.connected_account_id,
         )
-        return JsonResponse({"success": True, "transfer": transfer})
+        return Response({"success": True, "transfer": transfer})
     except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
+        return Response({"success": False, "error": str(e)}, status=400)
 
 
-@csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def test_payout(request):
+    user = request.user
+    if not getattr(user, "connected_account_id", None):
+        return Response({"error": "User does not have a connected account"}, status=400)
+
     try:
+        amount = request.data.get("amount")
+        if not amount:
+            return Response({"error": "Amount is required"}, status=400)
+        amount = int(amount)
+
         payout = stripe.Payout.create(
-            amount=5000,   
+            amount=amount,
             currency="aed",
-            stripe_account=CONNECTED_ACCOUNT_ID,
+            stripe_account=user.connected_account_id,
         )
-        return JsonResponse({"success": True, "payout": payout})
+        return Response({"success": True, "payout": payout})
     except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
+        return Response({"success": False, "error": str(e)}, status=400)
 
-
-@csrf_exempt
-@require_POST
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def create_checkout_session(request):
     try:
+        # No payload needed; price_id is fixed
         checkout_session = stripe.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": PRICE_ID, "quantity": 1}],
@@ -91,6 +125,6 @@ def create_checkout_session(request):
             success_url="http://localhost:8000/success",
             cancel_url="http://localhost:8000/cancel",
         )
-        return JsonResponse({"checkout_url": checkout_session.url})
+        return Response({"checkout_url": checkout_session.url})
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
+        return Response({"error": str(e)}, status=400)
