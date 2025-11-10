@@ -8,9 +8,9 @@ from .views import (
 )
 
 urlpatterns = [
-    path("add-funds/", add_funds, name="add-funds"),
-    path("test-payout/", test_payout, name="test-payout"),
-    path("test-transfer/", test_transfer, name="test-transfer"),
-    path("create-checkout-session/", create_checkout_session, name="create-checkout-session"),
-    path("create-connected-account/", create_connected_account, name="create-connected-account"),
+    path("funds/", add_funds, name="funds"),                        
+    path("payout/", test_payout, name="payout"),                    
+    path("transfer/", test_transfer, name="transfer"),             
+    path("checkout/", create_checkout_session, name="checkout"),   
+    path("connected-account/", create_connected_account, name="connected-account"), 
 ]
