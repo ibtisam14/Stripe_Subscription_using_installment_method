@@ -3,7 +3,7 @@ from .views import (
     test_payout,
     test_transfer,
     create_checkout_session,
-    create_connected_account
+    create_connected_account ,
 )
 
 urlpatterns = [

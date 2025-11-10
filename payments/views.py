@@ -16,8 +16,13 @@ User = get_user_model()
 @permission_classes([IsAuthenticated])
 def create_connected_account(request):
     user = request.user
+    if getattr(user, "connected_account_id", None):
+        return Response({
+            "success": False,
+            "error": "User already has a connected account"
+        }, status=400)
+
     try:
-    
         account = stripe.Account.create(
             type="express",
             country="AE",
@@ -41,6 +46,7 @@ def create_connected_account(request):
         })
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
+
 
 
 @api_view(["POST"])
