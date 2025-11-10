@@ -4,7 +4,7 @@ from .views import (
     test_payout,
     test_transfer,
     create_checkout_session,
-    stripe_webhook,
+    create_connected_account
 )
 
 urlpatterns = [
@@ -12,5 +12,5 @@ urlpatterns = [
     path("test-payout/", test_payout, name="test-payout"),
     path("test-transfer/", test_transfer, name="test-transfer"),
     path("create-checkout-session/", create_checkout_session, name="create-checkout-session"),
-    path("webhook/", stripe_webhook, name="stripe-webhook"),
+    path("create-connected-account/", create_connected_account, name="create-connected-account"),
 ]

@@ -1,13 +1,42 @@
 import stripe
 import os
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
-CONNECTED_ACCOUNT_ID = "acct_1SQlMsIVBvIGjqRr"
+CONNECTED_ACCOUNT_ID = os.getenv("STRIPE_CONNECTED_ACCOUNT_ID")
+
+@csrf_exempt
+def create_connected_account(request):
+    try:
+        account = stripe.Account.create(
+            type="express",
+            country="AE",
+            email="testuser@example.com",  
+            capabilities={
+                "transfers": {"requested": True},
+            }
+        )
+
+        account_link = stripe.AccountLink.create(
+            account=account.id,
+            refresh_url="https://example.com/reauth",
+            return_url="https://example.com/return",
+            type="account_onboarding"
+        )
+
+        return JsonResponse({
+            "success": True,
+            "connected_account_id": account.id,
+            "account_link_url": account_link.url
+        })
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
 
 @csrf_exempt
 def add_funds(request):
@@ -24,11 +53,12 @@ def add_funds(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
+
 @csrf_exempt
 def test_transfer(request):
     try:
         transfer = stripe.Transfer.create(
-            amount=10000,  # $100
+            amount=10000, 
             currency="aed",
             destination=CONNECTED_ACCOUNT_ID
         )
@@ -49,6 +79,7 @@ def test_payout(request):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
+
 @csrf_exempt
 @require_POST
 def create_checkout_session(request):
@@ -63,26 +94,3 @@ def create_checkout_session(request):
         return JsonResponse({"checkout_url": checkout_session.url})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
-
-@csrf_exempt
-def stripe_webhook(request):
-    payload = request.body
-    sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
-    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
-
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except Exception:
-        return HttpResponse(status=400)
-
-    if event["type"] == "customer.subscription.created":
-        subscription = event["data"]["object"]
-        print("✅ Installment subscription started:", subscription["id"])
-
-    if event["type"] == "invoice.payment_succeeded":
-        print("✅ Installment payment received (no transfer triggered)")
-
-    if event["type"] == "customer.subscription.deleted":
-        print("✅ Installment plan ended")
-
-    return HttpResponse(status=200)
