@@ -45,28 +45,6 @@ def create_connected_account(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def add_funds(request):
-    try:
-        amount = request.data.get("amount")
-        if not amount:
-            return Response({"error": "Amount is required"}, status=400)
-        amount = int(amount)
-
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency="aed",
-            payment_method_types=["card"],
-            payment_method="pm_card_visa",
-            confirm=True,
-            automatic_payment_methods={"enabled": False},
-        )
-        return Response({"status": "funds added", "pi": payment_intent.id})
-    except Exception as e:
-        return Response({"error": str(e)}, status=400)
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def test_transfer(request):
     user = request.user
     if not getattr(user, "connected_account_id", None):
