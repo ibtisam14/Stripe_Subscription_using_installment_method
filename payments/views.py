@@ -53,10 +53,11 @@ def create_connected_account(request):
 @permission_classes([IsAuthenticated])
 def test_transfer(request):
     user = request.user
-    if not getattr(user, "connected_account_id", None):
-        return Response({"error": "User does not have a connected account"}, status=400)
-
     try:
+        connected_account_id = request.data.get("connected_account_id") or getattr(user, "connected_account_id", None)
+        if not connected_account_id:
+            return Response({"error": "Connected account ID is required"}, status=400)
+
         amount = request.data.get("amount")
         if not amount:
             return Response({"error": "Amount is required"}, status=400)
@@ -65,7 +66,7 @@ def test_transfer(request):
         transfer = stripe.Transfer.create(
             amount=amount,
             currency="aed",
-            destination=user.connected_account_id,
+            destination=connected_account_id,
         )
         return Response({"success": True, "transfer": transfer})
     except Exception as e:
@@ -76,10 +77,11 @@ def test_transfer(request):
 @permission_classes([IsAuthenticated])
 def test_payout(request):
     user = request.user
-    if not getattr(user, "connected_account_id", None):
-        return Response({"error": "User does not have a connected account"}, status=400)
-
     try:
+        connected_account_id = request.data.get("connected_account_id") or getattr(user, "connected_account_id", None)
+        if not connected_account_id:
+            return Response({"error": "Connected account ID is required"}, status=400)
+
         amount = request.data.get("amount")
         if not amount:
             return Response({"error": "Amount is required"}, status=400)
@@ -88,7 +90,7 @@ def test_payout(request):
         payout = stripe.Payout.create(
             amount=amount,
             currency="aed",
-            stripe_account=user.connected_account_id,
+            stripe_account=connected_account_id,
         )
         return Response({"success": True, "payout": payout})
     except Exception as e:
