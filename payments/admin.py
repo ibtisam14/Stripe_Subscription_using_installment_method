@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, Subscription
 
-# Custom UserAdmin
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     model = User
@@ -23,7 +22,6 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-# Subscription admin
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = ("email", "subscription_id", "status", "plan_type", "start_date", "end_date", "billing_cycle_count", "created_at")

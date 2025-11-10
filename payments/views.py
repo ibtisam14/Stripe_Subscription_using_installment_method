@@ -24,12 +24,9 @@ def create_connected_account(request):
             email=user.email,
             capabilities={"transfers": {"requested": True}},
         )
-
-        # Save connected account ID in user model
         user.connected_account_id = account.id
         user.save()
 
-        # Create onboarding link
         account_link = stripe.AccountLink.create(
             account=account.id,
             refresh_url="https://example.com/reauth",
@@ -117,7 +114,6 @@ def test_payout(request):
 @permission_classes([IsAuthenticated])
 def create_checkout_session(request):
     try:
-        # No payload needed; price_id is fixed
         checkout_session = stripe.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": PRICE_ID, "quantity": 1}],
