@@ -18,6 +18,13 @@ def create_connected_account(request):
     user = request.user
     description = request.data.get("description", "")
 
+    existing_account = UserConnectedAccount.objects.filter(user=user).first()
+    if existing_account:
+        return Response({
+            "success": False,
+            "error": "User already has a connected account."
+        }, status=400)
+
     try:
         account = stripe.Account.create(
             type="express",
@@ -49,6 +56,7 @@ def create_connected_account(request):
         })
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
+
 
 
 @api_view(["DELETE"])
@@ -95,22 +103,26 @@ def delete_connected_account(request):
 @permission_classes([IsAuthenticated])
 def test_transfer(request):
     try:
-        db_id = request.data.get("db_id")  
+        connected_account_id = request.data.get("connected_account_id") 
         amount = request.data.get("amount")
-        if not db_id or not amount:
-            return Response({"error": "db_id and amount are required"}, status=400)
 
-        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        if not connected_account_id or not amount:
+            return Response({"error": "connected_account_id and amount are required"}, status=400)
+        account = UserConnectedAccount.objects.filter(
+            account_id=connected_account_id,
+            user=request.user
+        ).first()
         if not account:
-            return Response({"error": "Connected account not found"}, status=404)
+            return Response({"error": "Connected account not found for this user"}, status=404)
 
         transfer = stripe.Transfer.create(
             amount=int(amount),
             currency="aed",
-            destination=account.account_id 
+            destination=connected_account_id
         )
 
         return Response({"success": True, "transfer": transfer})
+
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
 
@@ -119,22 +131,27 @@ def test_transfer(request):
 @permission_classes([IsAuthenticated])
 def test_payout(request):
     try:
-        db_id = request.data.get("db_id") 
+        connected_account_id = request.data.get("connected_account_id") 
         amount = request.data.get("amount")
-        if not db_id or not amount:
-            return Response({"error": "db_id and amount are required"}, status=400)
 
-        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        if not connected_account_id or not amount:
+            return Response({"error": "connected_account_id and amount are required"}, status=400)
+
+        account = UserConnectedAccount.objects.filter(
+            account_id=connected_account_id,
+            user=request.user
+        ).first()
         if not account:
-            return Response({"error": "Connected account not found"}, status=404)
+            return Response({"error": "Connected account not found for this user"}, status=404)
 
         payout = stripe.Payout.create(
             amount=int(amount),
             currency="aed",
-            stripe_account=account.account_id 
+            stripe_account=connected_account_id
         )
 
         return Response({"success": True, "payout": payout})
+
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
 
