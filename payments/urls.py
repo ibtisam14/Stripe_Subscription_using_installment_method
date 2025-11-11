@@ -1,16 +1,16 @@
 from django.urls import path
 from .views import (
-    test_payout,
-    test_transfer,
-    create_checkout_session,
-    create_connected_account ,
-    delete_connected_account,
+    CreateConnectedAccountView,
+    DeleteConnectedAccountView,
+    TestTransferView,
+    TestPayoutView,
+    CreateCheckoutSessionView
 )
 
 urlpatterns = [
-    path("payout/", test_payout, name="payout"),                    
-    path("transfer/", test_transfer, name="transfer"),             
-    path("checkout/", create_checkout_session, name="checkout"),   
-    path("connected-account/", create_connected_account, name="connected-account"), 
-    path("connected-account/delete/", delete_connected_account, name="delete-connected-account"),
+    path("connected-account/create/", CreateConnectedAccountView.as_view()),
+    path("connected-account/delete/", DeleteConnectedAccountView.as_view()),
+    path("transfer/", TestTransferView.as_view()),
+    path("payout/", TestPayoutView.as_view()),
+    path("checkout/", CreateCheckoutSessionView.as_view()),
 ]
