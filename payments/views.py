@@ -4,10 +4,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from .models import UserConnectedAccount
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-
-PRICE_ID = os.getenv("STRIPE_PRICE_ID") 
+PRICE_ID = os.getenv("STRIPE_PRICE_ID")
 
 User = get_user_model()
 
@@ -16,11 +16,7 @@ User = get_user_model()
 @permission_classes([IsAuthenticated])
 def create_connected_account(request):
     user = request.user
-    if getattr(user, "connected_account_id", None):
-        return Response({
-            "success": False,
-            "error": "User already has a connected account"
-        }, status=400)
+    description = request.data.get("description", "")
 
     try:
         account = stripe.Account.create(
@@ -29,6 +25,15 @@ def create_connected_account(request):
             email=user.email,
             capabilities={"transfers": {"requested": True}},
         )
+
+        # Save in UserConnectedAccount table
+        UserConnectedAccount.objects.create(
+            user=user,
+            account_id=account.id,
+            description=description
+        )
+
+        # Optionally save the last connected account in user
         user.connected_account_id = account.id
         user.save()
 
@@ -46,22 +51,32 @@ def create_connected_account(request):
         })
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
-    
+
+
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_connected_account(request):
     try:
-        connected_account_id = request.data.get("connected_account_id")
-        if not connected_account_id:
+        db_id = request.data.get("db_id")  # DB row ID
+        if not db_id:
             return Response({
                 "success": False,
-                "error": "Please provide connected_account_id in the payload."
+                "error": "Please provide db_id in the payload."
             }, status=400)
 
-        deleted_account = stripe.Account.delete(connected_account_id)
+        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        if not account:
+            return Response({"success": False, "error": "Connected account not found"}, status=404)
 
+        # Delete from Stripe
+        deleted_account = stripe.Account.delete(account.account_id)
+
+        # Delete from DB
+        account.delete()
+
+        # Update user's last connected account if needed
         user = request.user
-        if getattr(user, "connected_account_id", None) == connected_account_id:
+        if getattr(user, "connected_account_id", None) == account.account_id:
             user.connected_account_id = None
             user.save()
 
@@ -70,32 +85,30 @@ def delete_connected_account(request):
             "message": "Connected account deleted successfully.",
             "stripe_response": deleted_account
         })
-
     except Exception as e:
-        return Response({
-            "success": False,
-            "error": str(e)
-        }, status=400)
+        return Response({"success": False, "error": str(e)}, status=400)
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def test_transfer(request):
-    user = request.user
     try:
-        connected_account_id = request.data.get("connected_account_id") or getattr(user, "connected_account_id", None)
-        if not connected_account_id:
-            return Response({"error": "Connected account ID is required"}, status=400)
-
+        db_id = request.data.get("db_id")  # DB row ID
         amount = request.data.get("amount")
-        if not amount:
-            return Response({"error": "Amount is required"}, status=400)
-        amount = int(amount)
+        if not db_id or not amount:
+            return Response({"error": "db_id and amount are required"}, status=400)
+
+        # Lookup Stripe account ID from DB
+        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        if not account:
+            return Response({"error": "Connected account not found"}, status=404)
 
         transfer = stripe.Transfer.create(
-            amount=amount,
+            amount=int(amount),
             currency="aed",
-            destination=connected_account_id,
+            destination=account.account_id  # Stripe account ID from DB
         )
+
         return Response({"success": True, "transfer": transfer})
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
@@ -104,25 +117,27 @@ def test_transfer(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def test_payout(request):
-    user = request.user
     try:
-        connected_account_id = request.data.get("connected_account_id") or getattr(user, "connected_account_id", None)
-        if not connected_account_id:
-            return Response({"error": "Connected account ID is required"}, status=400)
-
+        db_id = request.data.get("db_id")  # DB row ID
         amount = request.data.get("amount")
-        if not amount:
-            return Response({"error": "Amount is required"}, status=400)
-        amount = int(amount)
+        if not db_id or not amount:
+            return Response({"error": "db_id and amount are required"}, status=400)
+
+        # Lookup Stripe account ID from DB
+        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        if not account:
+            return Response({"error": "Connected account not found"}, status=404)
 
         payout = stripe.Payout.create(
-            amount=amount,
+            amount=int(amount),
             currency="aed",
-            stripe_account=connected_account_id,
+            stripe_account=account.account_id  # Stripe account ID from DB
         )
+
         return Response({"success": True, "payout": payout})
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

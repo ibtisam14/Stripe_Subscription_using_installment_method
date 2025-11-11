@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
+    # Optional: still keep last connected account for quick reference
     connected_account_id = models.CharField(max_length=255, blank=True, null=True)
 
     groups = models.ManyToManyField(
@@ -16,6 +17,15 @@ class User(AbstractUser):
         blank=True,
         help_text='Specific permissions for this user.'
     )
+
+class UserConnectedAccount(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='connected_accounts')
+    account_id = models.CharField(max_length=50)
+    description = models.CharField(max_length=100, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.account_id}"
 
 class Subscription(models.Model):
     email = models.EmailField()
