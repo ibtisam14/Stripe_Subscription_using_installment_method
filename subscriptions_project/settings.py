@@ -24,7 +24,6 @@ SECRET_KEY = 'django-insecure-o(_h$cg7(+g7)dnjdv0kt$#+$cfv=vponvgb**!ey#og*3-tqe
 DEBUG = True 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID")
-STRIPE_CONNECTED_ACCOUNT_ID = os.getenv("STRIPE_CONNECTED_ACCOUNT_ID")
 
 ALLOWED_HOSTS = []
 
@@ -121,11 +120,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 SIMPLE_JWT = {
-    # Access token lifetime (how long the token is valid)
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=6),  # now token lasts 1 hour
-    # Refresh token lifetime (how long you can get a new access token)
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # refresh token lasts 7 days
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=6), 
 
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7), 
 
     'ROTATE_REFRESH_TOKENS': True,   
     'BLACKLIST_AFTER_ROTATION': True,
