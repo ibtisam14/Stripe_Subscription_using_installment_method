@@ -104,7 +104,7 @@ def delete_connected_account(request):
 def test_transfer(request):
     try:
         connected_account_id = request.data.get("connected_account_id") 
-        amount = request.data.get("amount")
+        amount = request.data.get("amount") 
 
         if not connected_account_id or not amount:
             return Response({"error": "connected_account_id and amount are required"}, status=400)
