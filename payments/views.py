@@ -55,23 +55,28 @@ def create_connected_account(request):
 @permission_classes([IsAuthenticated])
 def delete_connected_account(request):
     try:
-        db_id = request.data.get("db_id")  # DB row ID
-        if not db_id:
+        connected_account_id = request.data.get("connected_account_id")  # Stripe account ID
+        if not connected_account_id:
             return Response({
                 "success": False,
-                "error": "Please provide db_id in the payload."
+                "error": "Please provide connected_account_id in the payload."
             }, status=400)
 
-        account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
+        account = UserConnectedAccount.objects.filter(
+            account_id=connected_account_id,
+            user=request.user
+        ).first()
         if not account:
-            return Response({"success": False, "error": "Connected account not found"}, status=404)
+            return Response({
+                "success": False,
+                "error": "Connected account not found for this user."
+            }, status=404)
 
-        deleted_account = stripe.Account.delete(account.account_id)
+        deleted_account = stripe.Account.delete(connected_account_id)
 
         account.delete()
-
         user = request.user
-        if getattr(user, "connected_account_id", None) == account.account_id:
+        if getattr(user, "connected_account_id", None) == connected_account_id:
             user.connected_account_id = None
             user.save()
 
@@ -80,8 +85,10 @@ def delete_connected_account(request):
             "message": "Connected account deleted successfully.",
             "stripe_response": deleted_account
         })
+
     except Exception as e:
         return Response({"success": False, "error": str(e)}, status=400)
+
 
 
 @api_view(["POST"])
