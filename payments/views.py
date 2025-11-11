@@ -26,14 +26,12 @@ def create_connected_account(request):
             capabilities={"transfers": {"requested": True}},
         )
 
-        # Save in UserConnectedAccount table
         UserConnectedAccount.objects.create(
             user=user,
             account_id=account.id,
             description=description
         )
 
-        # Optionally save the last connected account in user
         user.connected_account_id = account.id
         user.save()
 
@@ -68,13 +66,10 @@ def delete_connected_account(request):
         if not account:
             return Response({"success": False, "error": "Connected account not found"}, status=404)
 
-        # Delete from Stripe
         deleted_account = stripe.Account.delete(account.account_id)
 
-        # Delete from DB
         account.delete()
 
-        # Update user's last connected account if needed
         user = request.user
         if getattr(user, "connected_account_id", None) == account.account_id:
             user.connected_account_id = None
@@ -93,12 +88,11 @@ def delete_connected_account(request):
 @permission_classes([IsAuthenticated])
 def test_transfer(request):
     try:
-        db_id = request.data.get("db_id")  # DB row ID
+        db_id = request.data.get("db_id")  
         amount = request.data.get("amount")
         if not db_id or not amount:
             return Response({"error": "db_id and amount are required"}, status=400)
 
-        # Lookup Stripe account ID from DB
         account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
         if not account:
             return Response({"error": "Connected account not found"}, status=404)
@@ -106,7 +100,7 @@ def test_transfer(request):
         transfer = stripe.Transfer.create(
             amount=int(amount),
             currency="aed",
-            destination=account.account_id  # Stripe account ID from DB
+            destination=account.account_id 
         )
 
         return Response({"success": True, "transfer": transfer})
@@ -118,12 +112,11 @@ def test_transfer(request):
 @permission_classes([IsAuthenticated])
 def test_payout(request):
     try:
-        db_id = request.data.get("db_id")  # DB row ID
+        db_id = request.data.get("db_id") 
         amount = request.data.get("amount")
         if not db_id or not amount:
             return Response({"error": "db_id and amount are required"}, status=400)
 
-        # Lookup Stripe account ID from DB
         account = UserConnectedAccount.objects.filter(id=db_id, user=request.user).first()
         if not account:
             return Response({"error": "Connected account not found"}, status=404)
@@ -131,7 +124,7 @@ def test_payout(request):
         payout = stripe.Payout.create(
             amount=int(amount),
             currency="aed",
-            stripe_account=account.account_id  # Stripe account ID from DB
+            stripe_account=account.account_id 
         )
 
         return Response({"success": True, "payout": payout})
