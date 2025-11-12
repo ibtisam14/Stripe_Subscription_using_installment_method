@@ -4,7 +4,11 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from .models import UserConnectedAccount
-from .response_helper import success_response, error_response 
+from .utils.response_helper import success_response, error_response
+
+
+
+
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")
@@ -86,7 +90,8 @@ class DeleteConnectedAccountView(APIView):
 
             return success_response(
                 "Connected account deleted successfully.",
-                {"stripe_response": deleted_account}
+                {"stripe_response": deleted_account},
+                status_code=200
             )
 
         except Exception as e:
@@ -120,7 +125,8 @@ class TestTransferView(APIView):
 
             return success_response(
                 "Transfer created successfully.",
-                {"transfer": transfer}
+                {"transfer": transfer},
+                status_code=200
             )
 
         except Exception as e:
@@ -154,7 +160,8 @@ class TestPayoutView(APIView):
 
             return success_response(
                 "Payout created successfully.",
-                {"payout": payout}
+                {"payout": payout},
+                status_code=200
             )
 
         except Exception as e:
@@ -176,7 +183,8 @@ class CreateCheckoutSessionView(APIView):
 
             return success_response(
                 "Checkout session created successfully.",
-                {"checkout_url": checkout_session.url}
+                {"checkout_url": checkout_session.url},
+                status_code=200
             )
 
         except Exception as e:
