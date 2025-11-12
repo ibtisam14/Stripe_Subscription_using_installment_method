@@ -11,6 +11,7 @@ PRICE_ID = os.getenv("STRIPE_PRICE_ID")
 
 User = get_user_model()
 
+
 class CreateConnectedAccountView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -21,8 +22,10 @@ class CreateConnectedAccountView(APIView):
         existing_account = UserConnectedAccount.objects.filter(user=user).first()
         if existing_account:
             return Response({
-                "success": False,
-                "error": "User already has a connected account."
+                "status_code": 400,
+                "status": "error",
+                "message": "User already has a connected account.",
+                "data": {}
             }, status=400)
 
         try:
@@ -32,6 +35,7 @@ class CreateConnectedAccountView(APIView):
                 email=user.email,
                 capabilities={"transfers": {"requested": True}},
             )
+
             UserConnectedAccount.objects.create(
                 user=user,
                 account_id=account.id,
@@ -40,6 +44,7 @@ class CreateConnectedAccountView(APIView):
 
             user.connected_account_id = account.id
             user.save()
+
             account_link = stripe.AccountLink.create(
                 account=account.id,
                 refresh_url="https://example.com/reauth",
@@ -48,12 +53,23 @@ class CreateConnectedAccountView(APIView):
             )
 
             return Response({
-                "success": True,
-                "connected_account_id": account.id,
-                "account_link_url": account_link.url
-            })
+                "status_code": 201,
+                "status": "success",
+                "message": "Connected account created successfully.",
+                "data": {
+                    "connected_account_id": account.id,
+                    "account_link_url": account_link.url
+                }
+            }, status=201)
+
         except Exception as e:
-            return Response({"success": False, "error": str(e)}, status=400)
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": str(e),
+                "data": {}
+            }, status=400)
+
 
 class DeleteConnectedAccountView(APIView):
     permission_classes = [IsAuthenticated]
@@ -63,8 +79,10 @@ class DeleteConnectedAccountView(APIView):
             connected_account_id = request.data.get("connected_account_id")
             if not connected_account_id:
                 return Response({
-                    "success": False,
-                    "error": "Please provide connected_account_id in the payload."
+                    "status_code": 400,
+                    "status": "error",
+                    "message": "Please provide connected_account_id in the payload.",
+                    "data": {}
                 }, status=400)
 
             account = UserConnectedAccount.objects.filter(
@@ -74,12 +92,13 @@ class DeleteConnectedAccountView(APIView):
 
             if not account:
                 return Response({
-                    "success": False,
-                    "error": "Connected account not found for this user."
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Connected account not found for this user.",
+                    "data": {}
                 }, status=404)
 
             deleted_account = stripe.Account.delete(connected_account_id)
-
             account.delete()
 
             if getattr(request.user, "connected_account_id", None) == connected_account_id:
@@ -87,13 +106,20 @@ class DeleteConnectedAccountView(APIView):
                 request.user.save()
 
             return Response({
-                "success": True,
+                "status_code": 200,
+                "status": "success",
                 "message": "Connected account deleted successfully.",
-                "stripe_response": deleted_account
-            })
+                "data": {"stripe_response": deleted_account}
+            }, status=200)
 
         except Exception as e:
-            return Response({"success": False, "error": str(e)}, status=400)
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": str(e),
+                "data": {}
+            }, status=400)
+
 
 class TestTransferView(APIView):
     permission_classes = [IsAuthenticated]
@@ -104,7 +130,12 @@ class TestTransferView(APIView):
             amount = request.data.get("amount")
 
             if not connected_account_id or not amount:
-                return Response({"error": "connected_account_id and amount are required"}, status=400)
+                return Response({
+                    "status_code": 400,
+                    "status": "error",
+                    "message": "connected_account_id and amount are required.",
+                    "data": {}
+                }, status=400)
 
             account = UserConnectedAccount.objects.filter(
                 account_id=connected_account_id,
@@ -112,7 +143,12 @@ class TestTransferView(APIView):
             ).first()
 
             if not account:
-                return Response({"error": "Connected account not found for this user"}, status=404)
+                return Response({
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Connected account not found for this user.",
+                    "data": {}
+                }, status=404)
 
             transfer = stripe.Transfer.create(
                 amount=int(amount),
@@ -120,10 +156,21 @@ class TestTransferView(APIView):
                 destination=connected_account_id
             )
 
-            return Response({"success": True, "transfer": transfer})
+            return Response({
+                "status_code": 200,
+                "status": "success",
+                "message": "Transfer created successfully.",
+                "data": {"transfer": transfer}
+            }, status=200)
 
         except Exception as e:
-            return Response({"success": False, "error": str(e)}, status=400)
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": str(e),
+                "data": {}
+            }, status=400)
+
 
 class TestPayoutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -134,7 +181,12 @@ class TestPayoutView(APIView):
             amount = request.data.get("amount")
 
             if not connected_account_id or not amount:
-                return Response({"error": "connected_account_id and amount are required"}, status=400)
+                return Response({
+                    "status_code": 400,
+                    "status": "error",
+                    "message": "connected_account_id and amount are required.",
+                    "data": {}
+                }, status=400)
 
             account = UserConnectedAccount.objects.filter(
                 account_id=connected_account_id,
@@ -142,7 +194,12 @@ class TestPayoutView(APIView):
             ).first()
 
             if not account:
-                return Response({"error": "Connected account not found for this user"}, status=404)
+                return Response({
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Connected account not found for this user.",
+                    "data": {}
+                }, status=404)
 
             payout = stripe.Payout.create(
                 amount=int(amount),
@@ -150,10 +207,21 @@ class TestPayoutView(APIView):
                 stripe_account=connected_account_id
             )
 
-            return Response({"success": True, "payout": payout})
+            return Response({
+                "status_code": 200,
+                "status": "success",
+                "message": "Payout created successfully.",
+                "data": {"payout": payout}
+            }, status=200)
 
         except Exception as e:
-            return Response({"success": False, "error": str(e)}, status=400)
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": str(e),
+                "data": {}
+            }, status=400)
+
 
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated]
@@ -168,7 +236,17 @@ class CreateCheckoutSessionView(APIView):
                 cancel_url="http://localhost:8000/cancel",
             )
 
-            return Response({"checkout_url": checkout_session.url})
+            return Response({
+                "status_code": 200,
+                "status": "success",
+                "message": "Checkout session created successfully.",
+                "data": {"checkout_url": checkout_session.url}
+            }, status=200)
 
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": str(e),
+                "data": {}
+            }, status=400)
