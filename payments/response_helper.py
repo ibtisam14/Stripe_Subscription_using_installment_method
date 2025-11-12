@@ -1,5 +1,5 @@
 from rest_framework.response import Response
-
+# for success response
 def success_response(message, data=None, status_code=200):
     """
     Returns a uniform success response.
@@ -11,7 +11,7 @@ def success_response(message, data=None, status_code=200):
         "data": data or {}
     }, status=status_code)
 
-
+#  for error response
 def error_response(message, status_code=400, data=None):
     """
     Returns a uniform error response.
